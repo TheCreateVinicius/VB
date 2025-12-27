@@ -1,12 +1,12 @@
--- VB HUB | JUJUTSU ZERO | AUTO OPEN (ULTRA SAFE FINAL)
+-- VB HUB | JUJUTSU ZERO | AUTO OPEN (ULTRA SAFE FINAL FIXED)
 
 -- ======================
 -- CONFIG
 -- ======================
 local BASE_DELAY = 0.9
-local FAIL_DELAY = 1.4
-local MAX_FAILS = 10          -- IDs seguidos sem recompensa até concluir mapa
-local RETRY_PER_ID = 3        -- tentativas por ID
+local FAIL_DELAY = 1.3
+local MAX_FAILS = 10
+local RETRY_PER_ID = 3
 local SAVE_FILE = "vb_auto_maps_data.json"
 
 -- ======================
@@ -15,6 +15,8 @@ local SAVE_FILE = "vb_auto_maps_data.json"
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local HttpService = game:GetService("HttpService")
 local CoreGui = game:GetService("CoreGui")
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
 
 -- ======================
 -- REMOTE
@@ -34,7 +36,7 @@ local Data = {
     Maps = {}
 }
 
-local CurrentMap = nil
+local CurrentMap = tostring(game.PlaceId)
 local CurrentJobId = game.JobId
 
 -- ======================
@@ -55,20 +57,18 @@ end
 carregar()
 
 -- ======================
--- MAP DETECTION
+-- MAP DETECTION (FIXED)
 -- ======================
 local function detectarMapa()
-    local ok, map = pcall(function()
-        return ReplicatedStorage:WaitForChild("MapId").Value
-    end)
-    return ok and tostring(map) or "0"
+    return tostring(game.PlaceId)
 end
 
 -- ======================
 -- GUI
 -- ======================
-local gui = Instance.new("ScreenGui", CoreGui)
+local gui = Instance.new("ScreenGui")
 gui.Name = "VB_AUTO_ULTRA"
+gui.Parent = CoreGui
 
 local frame = Instance.new("Frame", gui)
 frame.Size = UDim2.new(0, 310, 0, 260)
@@ -97,7 +97,7 @@ status.TextColor3 = Color3.new(1,1,1)
 status.BackgroundTransparency = 1
 status.TextWrapped = true
 status.TextYAlignment = Enum.TextYAlignment.Top
-status.Text = "Aguardando..."
+status.Text = "Pronto para iniciar."
 
 local toggle = Instance.new("TextButton", frame)
 toggle.Size = UDim2.new(0.9, 0, 0, 35)
@@ -131,41 +131,36 @@ exit.MouseButton1Click:Connect(function()
 end)
 
 -- ======================
--- AUTO FARM INTELIGENTE FINAL
+-- AUTO FARM FINAL FUNCIONAL
 -- ======================
 task.spawn(function()
     while task.wait(0.35) do
         if not getgenv().AutoFarm then continue end
 
-        -- AUTO RESET AO TROCAR DE SERVER
+        -- AUTO RESET SERVER
         if game.JobId ~= CurrentJobId then
             CurrentJobId = game.JobId
-            CurrentMap = nil
-            status.Text = "🔄 Novo servidor detectado\nResetando dados locais..."
-            task.wait(2)
+            CurrentMap = detectarMapa()
+            status.Text = "🔄 Novo servidor detectado\nResetando varredura..."
+            task.wait(1.5)
         end
 
         local mapId = detectarMapa()
 
-        if mapId ~= CurrentMap then
-            CurrentMap = mapId
-            Data.Maps[mapId] = Data.Maps[mapId] or {
-                Loot = {},
-                ValidIDs = {} -- contador por ID
-            }
-            salvar()
-        end
+        Data.Maps[mapId] = Data.Maps[mapId] or {
+            Loot = {},
+            ValidIDs = {}
+        }
 
         local mapData = Data.Maps[mapId]
         local index = 0
         local fails = 0
         local totalTestados = 0
-        local idsValidos = 0
 
         while getgenv().AutoFarm and fails < MAX_FAILS do
             local id = mapId .. "_" .. index
             local success = false
-            local ganhosNesteID = 0
+            local ganhos = 0
 
             for attempt = 1, RETRY_PER_ID do
                 if not getgenv().AutoFarm then break end
@@ -176,7 +171,7 @@ task.spawn(function()
 
                 if ok and ret then
                     success = true
-                    ganhosNesteID += 1
+                    ganhos += 1
 
                     mapData.Loot[#mapData.Loot + 1] = {
                         caixa = id,
@@ -194,8 +189,7 @@ task.spawn(function()
 
             if success then
                 fails = 0
-                mapData.ValidIDs[id] = (mapData.ValidIDs[id] or 0) + ganhosNesteID
-                idsValidos = idsValidos + 1
+                mapData.ValidIDs[id] = (mapData.ValidIDs[id] or 0) + ganhos
                 salvar()
             else
                 fails += 1
@@ -205,8 +199,8 @@ task.spawn(function()
                 "Mapa: "..mapId..
                 "\nID atual: "..id..
                 "\nIDs testados: "..totalTestados..
-                "\nIDs válidos: "..idsValidos..
-                "\nTotal de caixas: "..#mapData.Loot..
+                "\nIDs válidos: "..table.getn(mapData.ValidIDs)..
+                "\nCaixas coletadas: "..#mapData.Loot..
                 "\nFalhas seguidas: "..fails
 
             index += 1
