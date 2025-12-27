@@ -1,13 +1,12 @@
--- VB HUB | JUJUTSU ZERO | AUTO OPEN 2_X (SAFE FINAL)
+-- VB HUB | JUJUTSU ZERO | AUTO OPEN (ULTRA SAFE)
 
 -- ======================
 -- CONFIG
 -- ======================
-local MAP_ID = 2
-local MAX_CAIXAS = 30
-local BASE_DELAY = 0.8
+local BASE_DELAY = 0.9
 local FAIL_DELAY = 2
-local SAVE_FILE = "vb_caixas_map2_safe.json"
+local MAX_FAILS = 8
+local SAVE_FILE = "vb_auto_maps_data.json"
 
 -- ======================
 -- SERVICES
@@ -31,11 +30,11 @@ local Remote =
 getgenv().AutoFarm = false
 
 local Data = {
-    Validas = {},
-    Abertas = {}
+    Maps = {},
+    Historico = {}
 }
 
-local TotalRecompensas = 0
+local CurrentMap = nil
 
 -- ======================
 -- SAVE / LOAD
@@ -55,50 +54,52 @@ end
 carregar()
 
 -- ======================
--- CONTADORES
+-- MAP DETECTION
 -- ======================
-local function contar(tbl)
-    local c = 0
-    for _ in pairs(tbl) do c += 1 end
-    return c
+local function detectarMapa()
+    local ok, map = pcall(function()
+        return ReplicatedStorage:WaitForChild("MapId").Value
+    end)
+    return ok and tostring(map) or "0"
 end
 
 -- ======================
 -- GUI
 -- ======================
 local gui = Instance.new("ScreenGui", CoreGui)
-gui.Name = "VB_AUTO_SAFE"
+gui.Name = "VB_AUTO_ULTRA"
 
 local frame = Instance.new("Frame", gui)
-frame.Size = UDim2.new(0, 270, 0, 190)
+frame.Size = UDim2.new(0, 300, 0, 240)
 frame.Position = UDim2.new(0.05, 0, 0.35, 0)
 frame.BackgroundColor3 = Color3.fromRGB(20,20,20)
 frame.Active = true
 frame.Draggable = true
-Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 10)
+Instance.new("UICorner", frame)
 
 local title = Instance.new("TextLabel", frame)
-title.Size = UDim2.new(1, -40, 0, 35)
-title.Position = UDim2.new(0, 10, 0, 0)
-title.Text = "VB HUB | AUTO 2_X SAFE"
-title.TextColor3 = Color3.fromRGB(255,0,0)
+title.Size = UDim2.new(1, -20, 0, 30)
+title.Position = UDim2.new(0, 10, 0, 5)
+title.Text = "VB HUB | AUTO MAP SAFE"
 title.Font = Enum.Font.GothamBold
 title.TextSize = 14
+title.TextColor3 = Color3.fromRGB(255,0,0)
 title.BackgroundTransparency = 1
 title.TextXAlignment = Enum.TextXAlignment.Left
 
 local status = Instance.new("TextLabel", frame)
-status.Size = UDim2.new(1, -20, 0, 80)
+status.Size = UDim2.new(1, -20, 0, 120)
 status.Position = UDim2.new(0, 10, 0, 40)
-status.TextColor3 = Color3.new(1,1,1)
 status.Font = Enum.Font.Gotham
 status.TextSize = 12
+status.TextColor3 = Color3.new(1,1,1)
 status.BackgroundTransparency = 1
 status.TextWrapped = true
+status.TextYAlignment = Enum.TextYAlignment.Top
 
 local toggle = Instance.new("TextButton", frame)
-toggle.Size = UDim2.new(0.85, 0, 0, 40)
-toggle.Position = UDim2.new(0.075, 0, 0.7, 0)
+toggle.Size = UDim2.new(0.9, 0, 0, 35)
+toggle.Position = UDim2.new(0.05, 0, 0.70, 0)
 toggle.Text = "LIGAR AUTO FARM"
 toggle.Font = Enum.Font.GothamBold
 toggle.TextSize = 14
@@ -112,52 +113,84 @@ toggle.MouseButton1Click:Connect(function()
     toggle.BackgroundColor3 = getgenv().AutoFarm and Color3.fromRGB(170,0,0) or Color3.fromRGB(0,170,0)
 end)
 
+-- BOTÃO SAIR
+local exit = Instance.new("TextButton", frame)
+exit.Size = UDim2.new(0.9, 0, 0, 30)
+exit.Position = UDim2.new(0.05, 0, 0.86, 0)
+exit.Text = "SAIR DO SCRIPT"
+exit.Font = Enum.Font.GothamBold
+exit.TextSize = 13
+exit.TextColor3 = Color3.new(1,1,1)
+exit.BackgroundColor3 = Color3.fromRGB(90,90,90)
+Instance.new("UICorner", exit)
+
+exit.MouseButton1Click:Connect(function()
+    getgenv().AutoFarm = false
+    if gui then
+        gui:Destroy()
+    end
+end)
+
 -- ======================
--- AUTO FARM SAFE
+-- AUTO FARM INTELIGENTE
 -- ======================
 task.spawn(function()
     while task.wait(1) do
         if not getgenv().AutoFarm then continue end
 
-        local algoAberto = false
+        local mapId = detectarMapa()
 
-        for i = 1, MAX_CAIXAS do
-            if not getgenv().AutoFarm then break end
+        if mapId ~= CurrentMap then
+            CurrentMap = mapId
+            Data.Maps[mapId] = Data.Maps[mapId] or {
+                Loot = {}
+            }
+            salvar()
+        end
 
-            local id = MAP_ID .. "_" .. i
+        local mapData = Data.Maps[mapId]
+        local index = 0
+        local fails = 0
 
-            -- já aberta = ignora
-            if Data.Abertas[id] then
-                continue
-            end
+        while getgenv().AutoFarm and fails < MAX_FAILS do
+            local id = mapId .. "_" .. index
 
             local ok, ret = pcall(function()
                 return Remote:InvokeServer(id)
             end)
 
-            -- retorno válido = recompensa real
             if ok and ret then
-                Data.Validas[id] = true
-                Data.Abertas[id] = true
-                TotalRecompensas += 1
+                mapData.Loot[#mapData.Loot + 1] = {
+                    caixa = id,
+                    recompensa = ret,
+                    tempo = os.time()
+                }
+
+                Data.Historico[#Data.Historico + 1] = {
+                    mapa = mapId,
+                    caixa = id,
+                    recompensa = ret,
+                    tempo = os.time()
+                }
+
                 salvar()
-                algoAberto = true
+                fails = 0
                 task.wait(BASE_DELAY)
             else
-                -- falha = espera mais (anti flag)
+                fails += 1
                 task.wait(FAIL_DELAY)
             end
 
             status.Text =
-                "Caixas válidas: "..contar(Data.Validas)..
-                "\nAbertas: "..contar(Data.Abertas)..
-                "\nRecompensas: "..TotalRecompensas
+                "Mapa atual: "..mapId..
+                "\nCaixas coletadas: "..#mapData.Loot..
+                "\nTestando ID: "..id..
+                "\nFalhas seguidas: "..fails
+
+            index += 1
         end
 
-        -- nada mais pra abrir → para
-        if not algoAberto then
-            getgenv().AutoFarm = false
-            status.Text ..= "\n\n✔ TODAS AS RECOMPENSAS COLETADAS"
-        end
+        getgenv().AutoFarm = false
+        status.Text ..= "\n\n✔ TODAS AS CAIXAS DISPONÍVEIS FORAM COLETADAS"
     end
 end)
