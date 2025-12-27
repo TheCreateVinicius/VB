@@ -1,5 +1,5 @@
 -- ======================
--- VB HUB | JUJUTSU ZERO | AUTO OPEN FINAL (VERSÃO ROBUSTA)
+-- VB HUB | JUJUTSU ZERO | AUTO OPEN FINAL (VERSÃO 100%)
 -- ======================
 
 -- ======================
@@ -7,7 +7,8 @@
 -- ======================
 local START_MAP = 2
 local END_MAP = 4
-local DELAY = 2
+local MAX_INDEX = 100 -- faixa de índices para testar
+local DELAY = 2.5
 local SAVE_FILE = "vb_caixas_validas.json"
 
 -- ======================
@@ -23,12 +24,6 @@ local CoreGui = game:GetService("CoreGui")
 local Remote = ReplicatedStorage:WaitForChild("NetworkComm")
     :WaitForChild("MapService")
     :WaitForChild("OpenExplorationCrate_Method")
-
-if not Remote then
-    warn("Erro: Remote não encontrado. Verifique o caminho no jogo.")
-    return
-end
-print("Remote encontrado: " .. Remote:GetFullName())
 
 -- ======================
 -- VARIÁVEIS
@@ -167,57 +162,44 @@ local function tryOpen(id, retries)
         local ok, ret = pcall(function()
             return Remote:InvokeServer(id)
         end)
-        if ok and ret ~= nil then
+        if ok then
+            print("Caixa testada:", id, "Retorno:", ret)
             return true
         end
-        task.wait(0.5)
+        task.wait(1) -- espera 1s antes do retry
     end
     return false
 end
 
 -- ======================
--- AUTO FARM ROBUSTO
+-- AUTO FARM COMPLETO
 -- ======================
 task.spawn(function()
-    local semCaixa = 0
-    local index = 0
-
     while getgenv().AutoFarm do
         local encontrou = false
 
         for map = START_MAP, END_MAP do
-            local id = map.."_"..index
-            if not CaixasValidas[id] then
-                status.Text = "Testando: "..id..
-                    "\nVálidas: "..contarValidas()..
-                    " | Abertas: "..Abertas
-                print("Tentando abrir caixa: " .. id)
-                local sucesso = tryOpen(id)
-                print("Resultado para " .. id .. ": " .. tostring(sucesso))
-                if sucesso then
-                    CaixasValidas[id] = true
-                    salvar()
-                    adicionarLista(id)
-                    Abertas += 1
-                    encontrou = true
-                    print("Caixa válida encontrada: " .. id)
+            for index = 0, MAX_INDEX do
+                local id = map.."_"..index
+                if not CaixasValidas[id] then
+                    status.Text = "Testando: "..id..
+                        "\nVálidas: "..contarValidas()..
+                        " | Abertas: "..Abertas
+                    if tryOpen(id) then
+                        CaixasValidas[id] = true
+                        salvar()
+                        adicionarLista(id)
+                        Abertas += 1
+                        encontrou = true
+                    end
                 end
             end
         end
 
-        index += 1
-
         if not encontrou then
-            semCaixa += 1
-            print("Nenhuma caixa nova encontrada no ciclo. Contador semCaixa: " .. semCaixa)
-            if semCaixa >= 5 then
-                getgenv().AutoFarm = false
-                status.Text = "Nenhuma caixa restante neste servidor."
-                print("Script parado: Sem caixas após 5 ciclos.")
-                break
-            end
-        else
-            semCaixa = 0
+            getgenv().AutoFarm = false
+            status.Text = "Nenhuma caixa restante neste servidor."
+            break
         end
 
         task.wait(DELAY)
