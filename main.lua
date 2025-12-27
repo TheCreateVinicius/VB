@@ -1,4 +1,4 @@
--- VB HUB | JUJUTSU ZERO | AUTO OPEN 2_→5_ (FINAL REAL)
+-- VB HUB | JUJUTSU ZERO | AUTO OPEN FINAL (CORRIGIDO)
 
 -- ======================
 -- CONFIG
@@ -7,7 +7,7 @@ local START_MAP = 2
 local END_MAP = 5
 local MAX_INDEX = 50
 local DELAY = 0.5
-local SAVE_FILE = "vb_caixas_validas_global.json"
+local SAVE_FILE = "vb_caixas_validas.json"
 
 -- ======================
 -- SERVICES
@@ -15,7 +15,6 @@ local SAVE_FILE = "vb_caixas_validas_global.json"
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local HttpService = game:GetService("HttpService")
 local CoreGui = game:GetService("CoreGui")
-local JobId = game.JobId
 
 -- ======================
 -- REMOTE
@@ -31,7 +30,7 @@ local Remote = ReplicatedStorage
 getgenv().AutoFarm = false
 local CaixasValidas = {}
 local Abertas = 0
-local ServerId = JobId
+local ServerId = game.JobId
 
 -- ======================
 -- LOAD / SAVE
@@ -50,15 +49,14 @@ end
 
 carregar()
 
--- reset automático se trocar de server
+-- reset ao trocar de server
 if CaixasValidas.__server ~= ServerId then
-    CaixasValidas = {}
-    CaixasValidas.__server = ServerId
+    CaixasValidas = { __server = ServerId }
     salvar()
 end
 
 -- ======================
--- CONTADORES
+-- CONTADOR
 -- ======================
 local function contarValidas()
     local c = 0
@@ -71,13 +69,17 @@ local function contarValidas()
 end
 
 -- ======================
--- GUI
+-- GUI (CORRIGIDO)
 -- ======================
-local gui = Instance.new("ScreenGui", CoreGui)
+local parentGui = gethui and gethui() or CoreGui
+
+local gui = Instance.new("ScreenGui")
 gui.Name = "VB_AUTO_FINAL"
+gui.ResetOnSpawn = false
+gui.Parent = parentGui
 
 local frame = Instance.new("Frame", gui)
-frame.Size = UDim2.new(0, 300, 0, 260)
+frame.Size = UDim2.new(0, 300, 0, 280)
 frame.Position = UDim2.new(0.05, 0, 0.3, 0)
 frame.BackgroundColor3 = Color3.fromRGB(20,20,20)
 frame.Active = true
@@ -110,17 +112,17 @@ close.MouseButton1Click:Connect(function()
 end)
 
 local status = Instance.new("TextLabel", frame)
-status.Size = UDim2.new(1, -20, 0, 45)
+status.Size = UDim2.new(1, -20, 0, 50)
 status.Position = UDim2.new(0, 10, 0, 40)
-status.TextColor3 = Color3.new(1,1,1)
 status.Font = Enum.Font.Gotham
 status.TextSize = 12
+status.TextColor3 = Color3.new(1,1,1)
 status.BackgroundTransparency = 1
 status.TextWrapped = true
 
 local toggle = Instance.new("TextButton", frame)
 toggle.Size = UDim2.new(0.85, 0, 0, 40)
-toggle.Position = UDim2.new(0.075, 0, 0, 90)
+toggle.Position = UDim2.new(0.075, 0, 0, 95)
 toggle.Text = "LIGAR AUTO FARM"
 toggle.Font = Enum.Font.GothamBold
 toggle.TextSize = 14
@@ -137,40 +139,29 @@ end)
 -- ======================
 -- LISTA VISUAL
 -- ======================
-local listFrame = Instance.new("Frame", frame)
-listFrame.Size = UDim2.new(1, -20, 0, 100)
-listFrame.Position = UDim2.new(0, 10, 0, 140)
-listFrame.BackgroundColor3 = Color3.fromRGB(15,15,15)
-Instance.new("UICorner", listFrame)
+local list = Instance.new("ScrollingFrame", frame)
+list.Size = UDim2.new(1, -20, 0, 110)
+list.Position = UDim2.new(0, 10, 0, 150)
+list.CanvasSize = UDim2.new(0,0,0,0)
+list.ScrollBarImageTransparency = 0.2
+list.BackgroundTransparency = 0
+list.BackgroundColor3 = Color3.fromRGB(15,15,15)
+Instance.new("UICorner", list)
 
-local scroll = Instance.new("ScrollingFrame", listFrame)
-scroll.Size = UDim2.new(1, -10, 1, -10)
-scroll.Position = UDim2.new(0, 5, 0, 5)
-scroll.CanvasSize = UDim2.new(0,0,0,0)
-scroll.ScrollBarImageTransparency = 0.2
-scroll.BackgroundTransparency = 1
-
-local layout = Instance.new("UIListLayout", scroll)
+local layout = Instance.new("UIListLayout", list)
 layout.Padding = UDim.new(0, 4)
 
 local function adicionarLista(id)
-    for _, c in ipairs(scroll:GetChildren()) do
-        if c:IsA("TextLabel") and c.Text:find(id) then
-            return
-        end
-    end
-
-    local item = Instance.new("TextLabel", scroll)
-    item.Size = UDim2.new(1, -5, 0, 18)
-    item.Text = id
-    item.Font = Enum.Font.Gotham
-    item.TextSize = 11
-    item.TextColor3 = Color3.fromRGB(200,200,200)
-    item.BackgroundTransparency = 1
-    item.TextXAlignment = Enum.TextXAlignment.Left
-
+    local label = Instance.new("TextLabel", list)
+    label.Size = UDim2.new(1, -5, 0, 18)
+    label.Text = id
+    label.Font = Enum.Font.Gotham
+    label.TextSize = 11
+    label.TextColor3 = Color3.fromRGB(200,200,200)
+    label.BackgroundTransparency = 1
+    label.TextXAlignment = Enum.TextXAlignment.Left
     task.wait()
-    scroll.CanvasSize = UDim2.new(0,0,0,layout.AbsoluteContentSize.Y + 5)
+    list.CanvasSize = UDim2.new(0,0,0,layout.AbsoluteContentSize.Y + 5)
 end
 
 -- ======================
@@ -189,7 +180,9 @@ task.spawn(function()
                 if not getgenv().AutoFarm then break end
 
                 local id = map.."_"..i
-                status.Text = "Testando: "..id..
+
+                status.Text =
+                    "Testando: "..id..
                     "\nVálidas: "..contarValidas()..
                     " | Abertas: "..Abertas
 
@@ -213,7 +206,7 @@ task.spawn(function()
             semCaixa += 1
             if semCaixa >= 2 then
                 getgenv().AutoFarm = false
-                status.Text = "Nenhuma caixa restante neste server."
+                status.Text = "Nenhuma caixa restante neste servidor."
             end
         else
             semCaixa = 0
