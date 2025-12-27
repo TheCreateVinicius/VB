@@ -1,11 +1,12 @@
--- VB HUB | JUJUTSU ZERO | AUTO OPEN (ULTRA SAFE)
+-- VB HUB | JUJUTSU ZERO | AUTO OPEN (ULTRA SAFE FINAL)
 
 -- ======================
 -- CONFIG
 -- ======================
 local BASE_DELAY = 0.9
-local FAIL_DELAY = 2
-local MAX_FAILS = 8
+local FAIL_DELAY = 1.4
+local MAX_FAILS = 10          -- IDs seguidos sem recompensa até concluir mapa
+local RETRY_PER_ID = 3        -- tentativas por ID
 local SAVE_FILE = "vb_auto_maps_data.json"
 
 -- ======================
@@ -30,11 +31,11 @@ local Remote =
 getgenv().AutoFarm = false
 
 local Data = {
-    Maps = {},
-    Historico = {}
+    Maps = {}
 }
 
 local CurrentMap = nil
+local CurrentJobId = game.JobId
 
 -- ======================
 -- SAVE / LOAD
@@ -66,12 +67,11 @@ end
 -- ======================
 -- GUI
 -- ======================
-local gui = Instance.new("ScreenGui")
+local gui = Instance.new("ScreenGui", CoreGui)
 gui.Name = "VB_AUTO_ULTRA"
-gui.Parent = CoreGui
 
 local frame = Instance.new("Frame", gui)
-frame.Size = UDim2.new(0, 300, 0, 240)
+frame.Size = UDim2.new(0, 310, 0, 260)
 frame.Position = UDim2.new(0.05, 0, 0.35, 0)
 frame.BackgroundColor3 = Color3.fromRGB(20,20,20)
 frame.Active = true
@@ -89,7 +89,7 @@ title.BackgroundTransparency = 1
 title.TextXAlignment = Enum.TextXAlignment.Left
 
 local status = Instance.new("TextLabel", frame)
-status.Size = UDim2.new(1, -20, 0, 120)
+status.Size = UDim2.new(1, -20, 0, 150)
 status.Position = UDim2.new(0, 10, 0, 40)
 status.Font = Enum.Font.Gotham
 status.TextSize = 12
@@ -101,7 +101,7 @@ status.Text = "Aguardando..."
 
 local toggle = Instance.new("TextButton", frame)
 toggle.Size = UDim2.new(0.9, 0, 0, 35)
-toggle.Position = UDim2.new(0.05, 0, 0.70, 0)
+toggle.Position = UDim2.new(0.05, 0, 0.72, 0)
 toggle.Text = "LIGAR AUTO FARM"
 toggle.Font = Enum.Font.GothamBold
 toggle.TextSize = 14
@@ -115,10 +115,9 @@ toggle.MouseButton1Click:Connect(function()
     toggle.BackgroundColor3 = getgenv().AutoFarm and Color3.fromRGB(170,0,0) or Color3.fromRGB(0,170,0)
 end)
 
--- BOTÃO SAIR
 local exit = Instance.new("TextButton", frame)
 exit.Size = UDim2.new(0.9, 0, 0, 30)
-exit.Position = UDim2.new(0.05, 0, 0.86, 0)
+exit.Position = UDim2.new(0.05, 0, 0.88, 0)
 exit.Text = "SAIR DO SCRIPT"
 exit.Font = Enum.Font.GothamBold
 exit.TextSize = 13
@@ -132,57 +131,88 @@ exit.MouseButton1Click:Connect(function()
 end)
 
 -- ======================
--- AUTO FARM
+-- AUTO FARM INTELIGENTE FINAL
 -- ======================
 task.spawn(function()
-    while task.wait(0.3) do
+    while task.wait(0.35) do
         if not getgenv().AutoFarm then continue end
+
+        -- AUTO RESET AO TROCAR DE SERVER
+        if game.JobId ~= CurrentJobId then
+            CurrentJobId = game.JobId
+            CurrentMap = nil
+            status.Text = "🔄 Novo servidor detectado\nResetando dados locais..."
+            task.wait(2)
+        end
 
         local mapId = detectarMapa()
 
         if mapId ~= CurrentMap then
             CurrentMap = mapId
-            Data.Maps[mapId] = Data.Maps[mapId] or { Loot = {} }
+            Data.Maps[mapId] = Data.Maps[mapId] or {
+                Loot = {},
+                ValidIDs = {} -- contador por ID
+            }
             salvar()
         end
 
         local mapData = Data.Maps[mapId]
         local index = 0
         local fails = 0
+        local totalTestados = 0
+        local idsValidos = 0
 
         while getgenv().AutoFarm and fails < MAX_FAILS do
             local id = mapId .. "_" .. index
+            local success = false
+            local ganhosNesteID = 0
 
-            local ok, ret = pcall(function()
-                return Remote:InvokeServer(id)
-            end)
+            for attempt = 1, RETRY_PER_ID do
+                if not getgenv().AutoFarm then break end
 
-            if ok and ret then
-                mapData.Loot[#mapData.Loot + 1] = {
-                    caixa = id,
-                    recompensa = ret,
-                    tempo = os.time()
-                }
+                local ok, ret = pcall(function()
+                    return Remote:InvokeServer(id)
+                end)
 
-                Data.Historico[#Data.Historico + 1] = id
-                salvar()
+                if ok and ret then
+                    success = true
+                    ganhosNesteID += 1
+
+                    mapData.Loot[#mapData.Loot + 1] = {
+                        caixa = id,
+                        recompensa = ret,
+                        tempo = os.time()
+                    }
+
+                    task.wait(BASE_DELAY)
+                else
+                    task.wait(FAIL_DELAY)
+                end
+            end
+
+            totalTestados += 1
+
+            if success then
                 fails = 0
-                task.wait(BASE_DELAY)
+                mapData.ValidIDs[id] = (mapData.ValidIDs[id] or 0) + ganhosNesteID
+                idsValidos = idsValidos + 1
+                salvar()
             else
                 fails += 1
-                task.wait(FAIL_DELAY)
             end
 
             status.Text =
                 "Mapa: "..mapId..
-                "\nAbrindo ID: "..id..
-                "\nCaixas coletadas: "..#mapData.Loot..
+                "\nID atual: "..id..
+                "\nIDs testados: "..totalTestados..
+                "\nIDs válidos: "..idsValidos..
+                "\nTotal de caixas: "..#mapData.Loot..
                 "\nFalhas seguidas: "..fails
 
             index += 1
         end
 
-        status.Text ..= "\n\n⛔ Nenhuma recompensa detectada"
+        status.Text ..= "\n\n✔ TODAS AS CAIXAS COM RECOMPENSA FORAM COLETADAS"
         getgenv().AutoFarm = false
         toggle.Text = "LIGAR AUTO FARM"
         toggle.BackgroundColor3 = Color3.fromRGB(0,170,0)
