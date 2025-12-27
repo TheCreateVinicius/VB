@@ -24,6 +24,12 @@ local Remote = ReplicatedStorage:WaitForChild("NetworkComm")
     :WaitForChild("MapService")
     :WaitForChild("OpenExplorationCrate_Method")
 
+if not Remote then
+    warn("Erro: Remote não encontrado. Verifique o caminho no jogo.")
+    return
+end
+print("Remote encontrado: " .. Remote:GetFullName())
+
 -- ======================
 -- VARIÁVEIS
 -- ======================
@@ -185,12 +191,16 @@ task.spawn(function()
                 status.Text = "Testando: "..id..
                     "\nVálidas: "..contarValidas()..
                     " | Abertas: "..Abertas
-                if tryOpen(id) then
+                print("Tentando abrir caixa: " .. id)
+                local sucesso = tryOpen(id)
+                print("Resultado para " .. id .. ": " .. tostring(sucesso))
+                if sucesso then
                     CaixasValidas[id] = true
                     salvar()
                     adicionarLista(id)
                     Abertas += 1
                     encontrou = true
+                    print("Caixa válida encontrada: " .. id)
                 end
             end
         end
@@ -199,9 +209,11 @@ task.spawn(function()
 
         if not encontrou then
             semCaixa += 1
-            if semCaixa >= 2 then
+            print("Nenhuma caixa nova encontrada no ciclo. Contador semCaixa: " .. semCaixa)
+            if semCaixa >= 5 then
                 getgenv().AutoFarm = false
                 status.Text = "Nenhuma caixa restante neste servidor."
+                print("Script parado: Sem caixas após 5 ciclos.")
                 break
             end
         else
