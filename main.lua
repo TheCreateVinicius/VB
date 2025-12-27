@@ -4,7 +4,7 @@
 -- CONFIG
 -- ======================
 local START_MAP = 2
-local END_MAP = 5
+local END_MAP = 10
 local MAX_INDEX = 50
 local DELAY = 0.5
 local SAVE_FILE = "vb_caixas_validas.json"
