@@ -1,4 +1,4 @@
--- ZENITH HUB | AUTO CAIXAS | DELTA EXECUTOR
+-- VB HUB | AUTO CAIXAS | DELTA EXECUTOR
 
 -- ======================
 -- CONFIG GLOBAL
@@ -22,22 +22,25 @@ end
 -- ======================
 local function detectarCaixas()
 	local caixas = {}
+	local added = {} -- Para evitar duplicatas
 
 	for _, obj in ipairs(workspace:GetDescendants()) do
 		-- Detecta por nome
 		if obj:IsA("BasePart") then
 			local nome = string.lower(obj.Name)
 
-			if nome:find("caixa") or nome:find("crate") or nome:find("box") then
+			if (nome:find("caixa") or nome:find("crate") or nome:find("box")) and not added[obj] then
 				table.insert(caixas, obj)
+				added[obj] = true
 			end
 		end
 
 		-- Detecta ProximityPrompt
 		if obj:IsA("ProximityPrompt") then
 			local part = obj.Parent
-			if part and part:IsA("BasePart") then
+			if part and part:IsA("BasePart") and not added[part] then
 				table.insert(caixas, part)
+				added[part] = true
 			end
 		end
 	end
@@ -92,7 +95,7 @@ end)
 -- HUB (GUI)
 -- ======================
 local gui = Instance.new("ScreenGui")
-gui.Name = "ZenithHub"
+gui.Name = "VBHUB"
 gui.ResetOnSpawn = false
 gui.Parent = game.CoreGui
 
@@ -131,9 +134,9 @@ toggle.MouseButton1Click:Connect(function()
 
 	if getgenv().AutoCaixa then
 		toggle.Text = "DESLIGAR AUTO CAIXAS"
-		toggle.BackgroundColor3 = Color3.fromRGB(170,0,0)
+		toggle.BackgroundColor3 = Color3.fromRGB(0,170,0) -- verde para ligado
 	else
 		toggle.Text = "LIGAR AUTO CAIXAS"
-		toggle.BackgroundColor3 = Color3.fromRGB(0,170,0)
+		toggle.BackgroundColor3 = Color3.fromRGB(170,0,0) -- vermelho para desligado
 	end
 end)
