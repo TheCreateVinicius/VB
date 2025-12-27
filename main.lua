@@ -1,12 +1,11 @@
-
-Você disse:
--- VB HUB | JUJUTSU ZERO | AUTO OPEN 2_X (FINAL)
+-- VB HUB | JUJUTSU ZERO | AUTO OPEN 2_X (FINAL REAL)
 
 -- ======================
 -- CONFIG
 -- ======================
 local MAP_ID = 2
-local MAX_CAIXAS = 30
+local MAX_TENTATIVAS_ID = 3       -- retry inteligente
+local MAX_FALHAS_SEGUIDAS = 8     -- stop real
 local DELAY = 0.6
 local SAVE_FILE = "vb_caixas_validas_2.json"
 
@@ -30,8 +29,13 @@ local Remote =
 -- VARIÁVEIS
 -- ======================
 getgenv().AutoFarm = false
+
 local CaixasValidas = {}
+local CaixasAbertas = {}
 local Abertas = 0
+local FalhasSeguidas = 0
+local IndexAtual = 0
+local CurrentJobId = game.JobId
 
 -- ======================
 -- LOAD / SAVE
@@ -55,23 +59,25 @@ carregar()
 -- ======================
 local function contarValidas()
     local c = 0
-    for _ in pairs(CaixasValidas) do c += 1 end
+    for _ in pairs(CaixasValidas) do
+        c += 1
+    end
     return c
 end
 
 -- ======================
--- GUI
+-- GUI (estrutura mantida)
 -- ======================
 local gui = Instance.new("ScreenGui", CoreGui)
 gui.Name = "VB_AUTO_2X"
 
 local frame = Instance.new("Frame", gui)
-frame.Size = UDim2.new(0, 260, 0, 180)
+frame.Size = UDim2.new(0, 260, 0, 190)
 frame.Position = UDim2.new(0.05, 0, 0.35, 0)
 frame.BackgroundColor3 = Color3.fromRGB(20,20,20)
 frame.Active = true
 frame.Draggable = true
-Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 10)
+Instance.new("UICorner", frame)
 
 local title = Instance.new("TextLabel", frame)
 title.Size = UDim2.new(1, -40, 0, 35)
@@ -94,13 +100,13 @@ close.BackgroundColor3 = Color3.fromRGB(170,0,0)
 Instance.new("UICorner", close)
 
 close.MouseButton1Click:Connect(function()
+    getgenv().AutoFarm = false
     gui:Destroy()
 end)
 
 local status = Instance.new("TextLabel", frame)
-status.Size = UDim2.new(1, -20, 0, 45)
+status.Size = UDim2.new(1, -20, 0, 70)
 status.Position = UDim2.new(0, 10, 0, 40)
-status.Text = "Caixas válidas: "..contarValidas().."\nAbertas: "..Abertas
 status.TextColor3 = Color3.new(1,1,1)
 status.Font = Enum.Font.Gotham
 status.TextSize = 12
@@ -124,38 +130,62 @@ toggle.MouseButton1Click:Connect(function()
 end)
 
 -- ======================
--- AUTO FARM
+-- AUTO FARM FINAL
 -- ======================
 task.spawn(function()
-    while task.wait(1) do
-        if getgenv().AutoFarm then
-            for i = 1, MAX_CAIXAS do
-                if not getgenv().AutoFarm then break end
+    while task.wait(0.2) do
+        if not getgenv().AutoFarm then continue end
 
-                local id = MAP_ID .. "_" .. i
+        -- RESET AO TROCAR DE SERVER
+        if game.JobId ~= CurrentJobId then
+            CurrentJobId = game.JobId
+            CaixasAbertas = {}
+            FalhasSeguidas = 0
+            IndexAtual = 0
+            Abertas = 0
+        end
 
-                -- se já é válida, só abre
-                if CaixasValidas[id] then
-                    pcall(function()
-                        Remote:InvokeServer(id)
-                        Abertas += 1
-                    end)
-                else
-                    -- testa se é válida
-                    local ok, retorno = pcall(function()
-                        return Remote:InvokeServer(id)
-                    end)
+        local id = MAP_ID .. "_" .. IndexAtual
+        local sucesso = false
 
-                    if ok and retorno then
-                        CaixasValidas[id] = true
-                        salvar()
-                        Abertas += 1
-                    end
+        if not CaixasAbertas[id] then
+            for _ = 1, MAX_TENTATIVAS_ID do
+                local ok, ret = pcall(function()
+                    return Remote:InvokeServer(id)
+                end)
+
+                if ok and ret then
+                    sucesso = true
+                    CaixasValidas[id] = true
+                    CaixasAbertas[id] = true
+                    Abertas += 1
+                    FalhasSeguidas = 0
+                    salvar()
+                    break
                 end
 
-                status.Text = "Caixas válidas: "..contarValidas().."\nAbertas: "..Abertas
                 task.wait(DELAY)
             end
+
+            if not sucesso then
+                FalhasSeguidas += 1
+            end
         end
+
+        status.Text =
+            "ID atual: "..id..
+            "\nCaixas válidas: "..contarValidas()..
+            "\nAbertas: "..Abertas..
+            "\nFalhas seguidas: "..FalhasSeguidas
+
+        if FalhasSeguidas >= MAX_FALHAS_SEGUIDAS then
+            status.Text ..= "\n\n✔ TODAS AS CAIXAS DO SERVIDOR FORAM COLETADAS"
+            getgenv().AutoFarm = false
+            toggle.Text = "LIGAR AUTO FARM"
+            toggle.BackgroundColor3 = Color3.fromRGB(0,170,0)
+        end
+
+        IndexAtual += 1
+        task.wait(DELAY)
     end
 end)
