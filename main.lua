@@ -1,19 +1,18 @@
 --=====================================================
--- VB HUB | AUTO CAIXAS | JUJUTSU ZERO | DELTA
+-- VB HUB | AUTO CAIXAS | JUJUTSU ZERO | DELTA EXECUTOR
 --=====================================================
 
 --======================
 -- CONFIG
 --======================
 getgenv().AutoCaixa = false
-getgenv().Delay = 0.3
-getgenv().DistanciaMax = 60
+getgenv().Delay = 0.4
 
 local Players = game:GetService("Players")
 local player = Players.LocalPlayer
 
 --======================
--- FUNÇÃO SEGURA HRP
+-- HRP SEGURO
 --======================
 local function getHRP()
 	local char = player.Character or player.CharacterAdded:Wait()
@@ -21,7 +20,7 @@ local function getHRP()
 end
 
 --======================
--- DETECTAR CAIXAS (JUJUTSU ZERO)
+-- DETECTAR CAIXAS (JUJUTSU ZERO REAL)
 --======================
 local function detectarCaixas()
 	local caixas = {}
@@ -29,19 +28,21 @@ local function detectarCaixas()
 
 	for _, obj in ipairs(workspace:GetDescendants()) do
 		if obj:IsA("ProximityPrompt") then
-			local parent = obj.Parent
-			if parent then
-				local part =
-					parent:IsA("BasePart") and parent
-					or parent:FindFirstChildWhichIsA("BasePart")
+			local texto = string.lower(obj.ActionText or "")
+			if texto:find("caixa") then
+				local model = obj.Parent
+				if model and model:IsA("Model") then
+					local part = model.PrimaryPart
+						or model:FindFirstChildWhichIsA("BasePart")
 
-				if part then
-					local dist = (hrp.Position - part.Position).Magnitude
-					if dist <= getgenv().DistanciaMax then
-						table.insert(caixas, {
-							part = part,
-							prompt = obj
-						})
+					if part then
+						local dist = (hrp.Position - part.Position).Magnitude
+						if dist <= 35 then
+							table.insert(caixas, {
+								part = part,
+								prompt = obj
+							})
+						end
 					end
 				end
 			end
@@ -55,28 +56,25 @@ end
 -- PEGAR CAIXA
 --======================
 local function pegarCaixa(data, hrp)
-	if not data or not data.part then return end
+	if not data or not data.part or not data.prompt then return end
 
 	local part = data.part
 	local prompt = data.prompt
 
-	-- Teleporte
-	hrp.CFrame = part.CFrame + Vector3.new(0, 2, 0)
-	task.wait(0.15)
+	-- Teleportar corretamente
+	hrp.CFrame = part.CFrame + Vector3.new(0, 2.5, 0)
+	task.wait(0.2)
 
-	-- Touch (fallback)
-	pcall(function()
-		firetouchinterest(hrp, part, 0)
-		firetouchinterest(hrp, part, 1)
-	end)
-
-	-- ProximityPrompt
-	if prompt then
-		pcall(function()
-			prompt.HoldDuration = 0
-			fireproximityprompt(prompt)
-		end)
+	-- Garantir distância válida
+	if (hrp.Position - part.Position).Magnitude > prompt.MaxActivationDistance then
+		return
 	end
+
+	-- Forçar ProximityPrompt
+	pcall(function()
+		prompt.HoldDuration = 0
+		fireproximityprompt(prompt)
+	end)
 end
 
 --======================
@@ -98,7 +96,7 @@ task.spawn(function()
 end)
 
 --======================
--- GUI / HUB
+-- GUI
 --======================
 local gui = Instance.new("ScreenGui")
 gui.Name = "VB_HUB"
@@ -106,7 +104,7 @@ gui.ResetOnSpawn = false
 gui.Parent = game.CoreGui
 
 local frame = Instance.new("Frame", gui)
-frame.Size = UDim2.new(0, 230, 0, 150)
+frame.Size = UDim2.new(0, 240, 0, 150)
 frame.Position = UDim2.new(0.05, 0, 0.35, 0)
 frame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
 frame.Active = true
@@ -120,7 +118,7 @@ title.BackgroundTransparency = 1
 title.Text = "VB HUB | JUJUTSU ZERO"
 title.Font = Enum.Font.GothamBold
 title.TextSize = 15
-title.TextColor3 = Color3.fromRGB(255, 50, 50)
+title.TextColor3 = Color3.fromRGB(255, 60, 60)
 
 local toggle = Instance.new("TextButton", frame)
 toggle.Size = UDim2.new(0.85, 0, 0, 45)
@@ -144,4 +142,3 @@ toggle.MouseButton1Click:Connect(function()
 		toggle.BackgroundColor3 = Color3.fromRGB(0, 170, 0)
 	end
 end)
-
