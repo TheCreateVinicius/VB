@@ -66,8 +66,9 @@ end
 -- ======================
 -- GUI
 -- ======================
-local gui = Instance.new("ScreenGui", CoreGui)
+local gui = Instance.new("ScreenGui")
 gui.Name = "VB_AUTO_ULTRA"
+gui.Parent = CoreGui
 
 local frame = Instance.new("Frame", gui)
 frame.Size = UDim2.new(0, 300, 0, 240)
@@ -96,6 +97,7 @@ status.TextColor3 = Color3.new(1,1,1)
 status.BackgroundTransparency = 1
 status.TextWrapped = true
 status.TextYAlignment = Enum.TextYAlignment.Top
+status.Text = "Aguardando..."
 
 local toggle = Instance.new("TextButton", frame)
 toggle.Size = UDim2.new(0.9, 0, 0, 35)
@@ -126,25 +128,21 @@ Instance.new("UICorner", exit)
 
 exit.MouseButton1Click:Connect(function()
     getgenv().AutoFarm = false
-    if gui then
-        gui:Destroy()
-    end
+    gui:Destroy()
 end)
 
 -- ======================
--- AUTO FARM INTELIGENTE
+-- AUTO FARM
 -- ======================
 task.spawn(function()
-    while task.wait(1) do
+    while task.wait(0.3) do
         if not getgenv().AutoFarm then continue end
 
         local mapId = detectarMapa()
 
         if mapId ~= CurrentMap then
             CurrentMap = mapId
-            Data.Maps[mapId] = Data.Maps[mapId] or {
-                Loot = {}
-            }
+            Data.Maps[mapId] = Data.Maps[mapId] or { Loot = {} }
             salvar()
         end
 
@@ -166,13 +164,7 @@ task.spawn(function()
                     tempo = os.time()
                 }
 
-                Data.Historico[#Data.Historico + 1] = {
-                    mapa = mapId,
-                    caixa = id,
-                    recompensa = ret,
-                    tempo = os.time()
-                }
-
+                Data.Historico[#Data.Historico + 1] = id
                 salvar()
                 fails = 0
                 task.wait(BASE_DELAY)
@@ -182,15 +174,17 @@ task.spawn(function()
             end
 
             status.Text =
-                "Mapa atual: "..mapId..
+                "Mapa: "..mapId..
+                "\nAbrindo ID: "..id..
                 "\nCaixas coletadas: "..#mapData.Loot..
-                "\nTestando ID: "..id..
                 "\nFalhas seguidas: "..fails
 
             index += 1
         end
 
+        status.Text ..= "\n\n⛔ Nenhuma recompensa detectada"
         getgenv().AutoFarm = false
-        status.Text ..= "\n\n✔ TODAS AS CAIXAS DISPONÍVEIS FORAM COLETADAS"
+        toggle.Text = "LIGAR AUTO FARM"
+        toggle.BackgroundColor3 = Color3.fromRGB(0,170,0)
     end
 end)
