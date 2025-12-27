@@ -1,17 +1,16 @@
--- VB HUB | JUJUTSU ZERO | AUTO CAIXAS (FINAL COMPLETO)
+-- JUJUTSU ZERO | AUTO OPEN ALL CRATES + GUI + CLOSE BUTTON
 
 -- ======================
--- CONFIG GLOBAL
+-- CONFIG
 -- ======================
-getgenv().AutoFarm = false
-getgenv().Delay = 0.5
-getgenv().CaixasDetectadas = {}
+local DELAY = 0.4
 
 -- ======================
 -- SERVICES
 -- ======================
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local CoreGui = game:GetService("CoreGui")
+local Players = game:GetService("Players")
+local player = Players.LocalPlayer
 
 -- ======================
 -- REMOTE
@@ -22,171 +21,104 @@ local OpenCrateRemote =
         :WaitForChild("OpenExplorationCrate_Method")
 
 -- ======================
--- SALVAMENTO EM ARQUIVO
+-- DETECTAR MAPA ATUAL
 -- ======================
-local FILE_NAME = "VB_JujutsuZero_Caixas.txt"
-
-local function suporteArquivo()
-    return writefile and readfile and isfile
-end
-
-local function salvarCaixas()
-    if not suporteArquivo() then return end
-    writefile(FILE_NAME, table.concat(getgenv().CaixasDetectadas, "\n"))
-end
-
-local function carregarCaixas()
-    if not suporteArquivo() then return end
-    if not isfile(FILE_NAME) then return end
-
-    local data = readfile(FILE_NAME)
-    for linha in string.gmatch(data, "[^\r\n]+") do
-        if not table.find(getgenv().CaixasDetectadas, linha) then
-            table.insert(getgenv().CaixasDetectadas, linha)
+local function getMapId()
+    for _, v in pairs(player:GetAttributes()) do
+        if tostring(v):match("^%d+$") then
+            return tostring(v)
         end
     end
+    return "4" -- fallback seguro
 end
 
-carregarCaixas()
+local MAP_ID = getMapId()
 
 -- ======================
--- UTIL
+-- GERAR CAIXAS
 -- ======================
-local function jaExiste(nome)
-    return table.find(getgenv().CaixasDetectadas, nome) ~= nil
-end
+local function gerarCaixas()
+    local caixas = {}
+    local grupos = {"G1", "G2", "G3"}
+    local niveis = {1,2,3,4,5}
 
-local function abrirCaixa(nome)
-    pcall(function()
-        OpenCrateRemote:InvokeServer(nome)
-    end)
-end
-
--- ======================
--- AUTO-DETECÇÃO REAL (HOOK REMOTE)
--- ======================
-local oldInvoke
-oldInvoke = hookfunction(OpenCrateRemote.InvokeServer, function(self, ...)
-    local args = {...}
-    local nome = tostring(args[1])
-
-    if nome and nome:find("Crate") then
-        if not jaExiste(nome) then
-            table.insert(getgenv().CaixasDetectadas, nome)
-            salvarCaixas()
-            print("[VB HUB] Caixa detectada:", nome)
+    for _, grupo in ipairs(grupos) do
+        for _, nivel in ipairs(niveis) do
+            table.insert(caixas, MAP_ID.."_"..grupo.." Crate "..nivel)
         end
     end
 
-    return oldInvoke(self, ...)
-end)
+    return caixas
+end
 
--- ======================
--- AUTO FARM
--- ======================
-task.spawn(function()
-    while task.wait(1) do
-        if getgenv().AutoFarm then
-            for _, caixa in ipairs(getgenv().CaixasDetectadas) do
-                if not getgenv().AutoFarm then break end
-                abrirCaixa(caixa)
-                task.wait(getgenv().Delay)
-            end
-        end
-    end
-end)
+local Caixas = gerarCaixas()
+local executando = true
 
 -- ======================
 -- GUI
 -- ======================
-local gui = Instance.new("ScreenGui", CoreGui)
-gui.Name = "VB_HUB"
-gui.ResetOnSpawn = false
+local gui = Instance.new("ScreenGui")
+gui.Name = "VB_AUTO_CRATES"
+gui.Parent = game.CoreGui
 
 local frame = Instance.new("Frame", gui)
-frame.Size = UDim2.new(0,280,0,250)
-frame.Position = UDim2.new(0.05,0,0.35,0)
-frame.BackgroundColor3 = Color3.fromRGB(18,18,18)
+frame.Size = UDim2.new(0, 260, 0, 120)
+frame.Position = UDim2.new(0.05, 0, 0.35, 0)
+frame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
 frame.Active = true
 frame.Draggable = true
-Instance.new("UICorner", frame).CornerRadius = UDim.new(0,10)
+
+Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 10)
 
 local title = Instance.new("TextLabel", frame)
-title.Size = UDim2.new(1,0,0,40)
-title.Text = "VB HUB | JUJUTSU ZERO"
+title.Size = UDim2.new(1, -40, 0, 40)
+title.Position = UDim2.new(0, 10, 0, 0)
+title.Text = "VB HUB | AUTO CAIXAS"
 title.Font = Enum.Font.GothamBold
-title.TextSize = 16
-title.TextColor3 = Color3.fromRGB(255,0,0)
+title.TextSize = 14
+title.TextColor3 = Color3.fromRGB(255, 0, 0)
 title.BackgroundTransparency = 1
+title.TextXAlignment = Enum.TextXAlignment.Left
 
--- STATUS
+-- BOTÃO FECHAR
+local close = Instance.new("TextButton", frame)
+close.Size = UDim2.new(0, 30, 0, 30)
+close.Position = UDim2.new(1, -35, 0, 5)
+close.Text = "X"
+close.Font = Enum.Font.GothamBold
+close.TextSize = 18
+close.TextColor3 = Color3.new(1, 1, 1)
+close.BackgroundColor3 = Color3.fromRGB(170, 0, 0)
+Instance.new("UICorner", close).CornerRadius = UDim.new(0, 6)
+
+close.MouseButton1Click:Connect(function()
+    gui:Destroy()
+end)
+
 local status = Instance.new("TextLabel", frame)
-status.Size = UDim2.new(0.9,0,0,30)
-status.Position = UDim2.new(0.05,0,0.22,0)
+status.Size = UDim2.new(1, -20, 0, 40)
+status.Position = UDim2.new(0, 10, 0, 60)
+status.Text = "Abrindo caixas do mapa "..MAP_ID
 status.Font = Enum.Font.Gotham
 status.TextSize = 12
-status.TextColor3 = Color3.new(1,1,1)
+status.TextColor3 = Color3.new(1, 1, 1)
 status.BackgroundTransparency = 1
+status.TextWrapped = true
 
+-- ======================
+-- LOOP PRINCIPAL
+-- ======================
 task.spawn(function()
-    while task.wait(1) do
-        status.Text = "Caixas detectadas: " .. #getgenv().CaixasDetectadas
+    for i, caixa in ipairs(Caixas) do
+        if not executando then break end
+
+        status.Text = "Abrindo ("..i.."/"..#Caixas.."):\n"..caixa
+        pcall(function()
+            OpenCrateRemote:InvokeServer(caixa)
+        end)
+
+        task.wait(DELAY)
     end
-end)
 
--- TOGGLE AUTO FARM
-local toggle = Instance.new("TextButton", frame)
-toggle.Size = UDim2.new(0.85,0,0,45)
-toggle.Position = UDim2.new(0.075,0,0.4,0)
-toggle.Text = "LIGAR AUTO CAIXAS"
-toggle.Font = Enum.Font.GothamBold
-toggle.TextSize = 14
-toggle.TextColor3 = Color3.new(1,1,1)
-toggle.BackgroundColor3 = Color3.fromRGB(0,170,0)
-Instance.new("UICorner", toggle).CornerRadius = UDim.new(0,8)
-
-toggle.MouseButton1Click:Connect(function()
-    getgenv().AutoFarm = not getgenv().AutoFarm
-    if getgenv().AutoFarm then
-        toggle.Text = "DESLIGAR AUTO CAIXAS"
-        toggle.BackgroundColor3 = Color3.fromRGB(170,0,0)
-    else
-        toggle.Text = "LIGAR AUTO CAIXAS"
-        toggle.BackgroundColor3 = Color3.fromRGB(0,170,0)
-    end
-end)
-
--- BOTÃO TESTE
-local test = Instance.new("TextButton", frame)
-test.Size = UDim2.new(0.85,0,0,40)
-test.Position = UDim2.new(0.075,0,0.65,0)
-test.Text = "ABRIR PRIMEIRA CAIXA"
-test.Font = Enum.Font.GothamBold
-test.TextSize = 14
-test.TextColor3 = Color3.new(1,1,1)
-test.BackgroundColor3 = Color3.fromRGB(0,100,255)
-Instance.new("UICorner", test).CornerRadius = UDim.new(0,8)
-
-test.MouseButton1Click:Connect(function()
-    if #getgenv().CaixasDetectadas > 0 then
-        abrirCaixa(getgenv().CaixasDetectadas[1])
-    end
-end)
-
--- BOTÃO LIMPAR CAIXAS
-local clear = Instance.new("TextButton", frame)
-clear.Size = UDim2.new(0.85,0,0,35)
-clear.Position = UDim2.new(0.075,0,0.83,0)
-clear.Text = "LIMPAR CAIXAS SALVAS"
-clear.Font = Enum.Font.GothamBold
-clear.TextSize = 12
-clear.TextColor3 = Color3.new(1,1,1)
-clear.BackgroundColor3 = Color3.fromRGB(120,120,120)
-Instance.new("UICorner", clear).CornerRadius = UDim.new(0,8)
-
-clear.MouseButton1Click:Connect(function()
-    table.clear(getgenv().CaixasDetectadas)
-    if suporteArquivo() and isfile(FILE_NAME) then
-        writefile(FILE_NAME, "")
-    end
+    status.Text = "Todas as caixas foram tentadas."
 end)
