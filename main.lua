@@ -1,14 +1,14 @@
--- ======================
--- VB HUB | JUJUTSU ZERO | AUTO OPEN FINAL (VERSÃO 100%)
--- ======================
+
+Você disse:
+-- VB HUB | JUJUTSU ZERO | AUTO OPEN FINAL (CORRIGIDO)
 
 -- ======================
 -- CONFIG
 -- ======================
 local START_MAP = 2
 local END_MAP = 4
-local MAX_INDEX = 100 -- faixa de índices para testar
-local DELAY = 2.5
+local MAX_INDEX = 50
+local DELAY = 2.0
 local SAVE_FILE = "vb_caixas_validas.json"
 
 -- ======================
@@ -21,7 +21,8 @@ local CoreGui = game:GetService("CoreGui")
 -- ======================
 -- REMOTE
 -- ======================
-local Remote = ReplicatedStorage:WaitForChild("NetworkComm")
+local Remote = ReplicatedStorage
+    :WaitForChild("NetworkComm")
     :WaitForChild("MapService")
     :WaitForChild("OpenExplorationCrate_Method")
 
@@ -49,11 +50,16 @@ local function carregar()
 end
 
 carregar()
+
+-- reset ao trocar de server
 if CaixasValidas.__server ~= ServerId then
     CaixasValidas = { __server = ServerId }
     salvar()
 end
 
+-- ======================
+-- CONTADOR
+-- ======================
 local function contarValidas()
     local c = 0
     for k in pairs(CaixasValidas) do
@@ -65,15 +71,17 @@ local function contarValidas()
 end
 
 -- ======================
--- GUI
+-- GUI (CORRIGIDO)
 -- ======================
 local parentGui = gethui and gethui() or CoreGui
-local gui = Instance.new("ScreenGui", parentGui)
+
+local gui = Instance.new("ScreenGui")
 gui.Name = "VB_AUTO_FINAL"
 gui.ResetOnSpawn = false
+gui.Parent = parentGui
 
 local frame = Instance.new("Frame", gui)
-frame.Size = UDim2.new(0, 300, 0, 320)
+frame.Size = UDim2.new(0, 300, 0, 280)
 frame.Position = UDim2.new(0.05, 0, 0.3, 0)
 frame.BackgroundColor3 = Color3.fromRGB(20,20,20)
 frame.Active = true
@@ -130,15 +138,20 @@ toggle.MouseButton1Click:Connect(function()
     toggle.BackgroundColor3 = getgenv().AutoFarm and Color3.fromRGB(170,0,0) or Color3.fromRGB(0,170,0)
 end)
 
+-- ======================
+-- LISTA VISUAL
+-- ======================
 local list = Instance.new("ScrollingFrame", frame)
-list.Size = UDim2.new(1, -20, 0, 130)
+list.Size = UDim2.new(1, -20, 0, 110)
 list.Position = UDim2.new(0, 10, 0, 150)
-list.BackgroundColor3 = Color3.fromRGB(15,15,15)
+list.CanvasSize = UDim2.new(0,0,0,0)
 list.ScrollBarImageTransparency = 0.2
+list.BackgroundTransparency = 0
+list.BackgroundColor3 = Color3.fromRGB(15,15,15)
 Instance.new("UICorner", list)
 
 local layout = Instance.new("UIListLayout", list)
-layout.Padding = UDim.new(0,4)
+layout.Padding = UDim.new(0, 4)
 
 local function adicionarLista(id)
     local label = Instance.new("TextLabel", list)
@@ -154,54 +167,51 @@ local function adicionarLista(id)
 end
 
 -- ======================
--- FUNÇÃO RETRY AUTOMÁTICO
--- ======================
-local function tryOpen(id, retries)
-    retries = retries or 3
-    for i = 1, retries do
-        local ok, ret = pcall(function()
-            return Remote:InvokeServer(id)
-        end)
-        if ok then
-            print("Caixa testada:", id, "Retorno:", ret)
-            return true
-        end
-        task.wait(1) -- espera 1s antes do retry
-    end
-    return false
-end
-
--- ======================
--- AUTO FARM COMPLETO
+-- AUTO FARM
 -- ======================
 task.spawn(function()
-    while getgenv().AutoFarm do
+    local semCaixa = 0
+
+    while task.wait(DELAY) do
+        if not getgenv().AutoFarm then continue end
+
         local encontrou = false
 
         for map = START_MAP, END_MAP do
-            for index = 0, MAX_INDEX do
-                local id = map.."_"..index
-                if not CaixasValidas[id] then
-                    status.Text = "Testando: "..id..
-                        "\nVálidas: "..contarValidas()..
-                        " | Abertas: "..Abertas
-                    if tryOpen(id) then
+            for i = 0, MAX_INDEX do
+                if not getgenv().AutoFarm then break end
+
+                local id = map.."_"..i
+
+                status.Text =
+                    "Testando: "..id..
+                    "\nVálidas: "..contarValidas()..
+                    " | Abertas: "..Abertas
+
+                local ok, ret = pcall(function()
+                    return Remote:InvokeServer(id)
+                end)
+
+                if ok and ret then
+                    encontrou = true
+                    if not CaixasValidas[id] then
                         CaixasValidas[id] = true
                         salvar()
                         adicionarLista(id)
-                        Abertas += 1
-                        encontrou = true
                     end
+                    Abertas += 1
                 end
             end
         end
 
         if not encontrou then
-            getgenv().AutoFarm = false
-            status.Text = "Nenhuma caixa restante neste servidor."
-            break
+            semCaixa += 1
+            if semCaixa >= 2 then
+                getgenv().AutoFarm = false
+                status.Text = "Nenhuma caixa restante neste servidor."
+            end
+        else
+            semCaixa = 0
         end
-
-        task.wait(DELAY)
     end
 end)
