@@ -10,7 +10,6 @@ getgenv().Delay = 0.4
 -- SERVICES
 -- ======================
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local Players = game:GetService("Players")
 
 -- ======================
 -- REMOTE
@@ -59,6 +58,8 @@ end
 
 local TodasCaixas = detectarCaixas()
 
+local status -- Declarar antecipadamente
+
 -- ======================
 -- ABRIR CAIXA
 -- ======================
@@ -67,26 +68,19 @@ local function abrirCaixa(nome)
         local sucesso = OpenCrateRemote:InvokeServer(nome)
         if sucesso then
             print("Caixa aberta com sucesso: " .. nome)
+            -- Remover da lista
+            for i, caixa in ipairs(TodasCaixas) do
+                if caixa == nome then
+                    table.remove(TodasCaixas, i)
+                    break
+                end
+            end
+            status.Text = "Caixas detectadas: " .. #TodasCaixas
         else
             warn("Falha ao abrir caixa: " .. nome)
         end
     end)
 end
-
--- ======================
--- AUTO FARM
--- ======================
-task.spawn(function()
-    while task.wait(1) do
-        if getgenv().AutoFarm then
-            for _, caixa in ipairs(TodasCaixas) do
-                if not getgenv().AutoFarm then break end
-                abrirCaixa(caixa)
-                task.wait(getgenv().Delay)
-            end
-        end
-    end
-end)
 
 -- ======================
 -- HUB GUI
@@ -95,7 +89,7 @@ local gui = Instance.new("ScreenGui", game.CoreGui)
 gui.Name = "VB_HUB"
 
 local frame = Instance.new("Frame", gui)
-frame.Size = UDim2.new(0,260,0,250)
+frame.Size = UDim2.new(0,260,0,220)
 frame.Position = UDim2.new(0.05,0,0.35,0)
 frame.BackgroundColor3 = Color3.fromRGB(20,20,20)
 frame.Active = true
@@ -111,8 +105,23 @@ title.Font = Enum.Font.GothamBold
 title.TextSize = 16
 title.BackgroundTransparency = 1
 
+-- BOTÃO FECHAR
+local closeButton = Instance.new("TextButton", frame)
+closeButton.Size = UDim2.new(0,30,0,30)
+closeButton.Position = UDim2.new(1,-35,0,5)
+closeButton.Text = "X"
+closeButton.Font = Enum.Font.GothamBold
+closeButton.TextSize = 18
+closeButton.TextColor3 = Color3.new(1,1,1)
+closeButton.BackgroundColor3 = Color3.fromRGB(170,0,0)
+Instance.new("UICorner", closeButton).CornerRadius = UDim.new(0,5)
+
+closeButton.MouseButton1Click:Connect(function()
+    gui:Destroy()
+end)
+
 -- STATUS
-local status = Instance.new("TextLabel", frame)
+status = Instance.new("TextLabel", frame)
 status.Size = UDim2.new(0.85,0,0,30)
 status.Position = UDim2.new(0.075,0,0.25,0)
 status.Text = "Caixas detectadas: " .. #TodasCaixas
@@ -144,27 +153,10 @@ toggle.MouseButton1Click:Connect(function()
     end
 end)
 
--- BOTÃO RECARREGAR CAIXAS
-local reload = Instance.new("TextButton", frame)
-reload.Size = UDim2.new(0.85,0,0,35)
-reload.Position = UDim2.new(0.075,0,0.6,0)
-reload.Text = "RECARREGAR CAIXAS"
-reload.Font = Enum.Font.GothamBold
-reload.TextSize = 12
-reload.TextColor3 = Color3.new(1,1,1)
-reload.BackgroundColor3 = Color3.fromRGB(255,165,0)
-Instance.new("UICorner", reload).CornerRadius = UDim.new(0,8)
-
-reload.MouseButton1Click:Connect(function()
-    TodasCaixas = detectarCaixas()
-    status.Text = "Caixas detectadas: " .. #TodasCaixas
-    print("Caixas recarregadas: " .. #TodasCaixas)
-end)
-
 -- BOTÃO TESTE MANUAL
 local test = Instance.new("TextButton", frame)
 test.Size = UDim2.new(0.85,0,0,40)
-test.Position = UDim2.new(0.075,0,0.8,0)
+test.Position = UDim2.new(0.075,0,0.6,0)
 test.Text = "ABRIR CAIXA TESTE"
 test.Font = Enum.Font.GothamBold
 test.TextSize = 14
@@ -174,4 +166,42 @@ Instance.new("UICorner", test).CornerRadius = UDim.new(0,8)
 
 test.MouseButton1Click:Connect(function()
     abrirCaixa("4_G1 Crate 3")
+end)
+
+-- ======================
+-- AUTO FARM
+-- ======================
+task.spawn(function()
+    while task.wait(1) do
+        if getgenv().AutoFarm then
+            for _, caixa in ipairs(TodasCaixas) do
+                if not getgenv().AutoFarm then break end
+                abrirCaixa(caixa)
+                task.wait(getgenv().Delay)
+            end
+        end
+    end
+end)
+
+-- ======================
+-- DETECTOR DE NOVAS CAIXAS
+-- ======================
+task.spawn(function()
+    while task.wait(5) do  -- Verificar a cada 5 segundos
+        local novasCaixas = detectarCaixas()
+        for _, nova in ipairs(novasCaixas) do
+            local jaTem = false
+            for _, existente in ipairs(TodasCaixas) do
+                if existente == nova then
+                    jaTem = true
+                    break
+                end
+            end
+            if not jaTem then
+                table.insert(TodasCaixas, nova)
+                print("Nova caixa detectada: " .. nova)
+            end
+        end
+        status.Text = "Caixas detectadas: " .. #TodasCaixas
+    end
 end)
