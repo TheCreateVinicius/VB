@@ -1,12 +1,13 @@
--- VB HUB | JUJUTSU ZERO | AUTO OPEN (ULTRA SAFE)
+-- VB HUB | JUJUTSU ZERO | AUTO OPEN 2_X (SAFE FINAL)
 
 -- ======================
 -- CONFIG
 -- ======================
-local BASE_DELAY = 0.9
+local MAP_ID = 2
+local MAX_CAIXAS = 30
+local BASE_DELAY = 0.8
 local FAIL_DELAY = 2
-local MAX_FAILS = 8 -- quantas falhas seguidas até parar
-local SAVE_FILE = "vb_auto_maps_data.json"
+local SAVE_FILE = "vb_caixas_map2_safe.json"
 
 -- ======================
 -- SERVICES
@@ -30,11 +31,11 @@ local Remote =
 getgenv().AutoFarm = false
 
 local Data = {
-    Maps = {}, -- dados por mapa
-    Historico = {} -- histórico geral
+    Validas = {},
+    Abertas = {}
 }
 
-local CurrentMap = nil
+local TotalRecompensas = 0
 
 -- ======================
 -- SAVE / LOAD
@@ -54,52 +55,50 @@ end
 carregar()
 
 -- ======================
--- MAP DETECTION
+-- CONTADORES
 -- ======================
-local function detectarMapa()
-    local ok, map = pcall(function()
-        return ReplicatedStorage:WaitForChild("MapId").Value
-    end)
-    return ok and tostring(map) or "0"
+local function contar(tbl)
+    local c = 0
+    for _ in pairs(tbl) do c += 1 end
+    return c
 end
 
 -- ======================
 -- GUI
 -- ======================
 local gui = Instance.new("ScreenGui", CoreGui)
-gui.Name = "VB_AUTO_ULTRA"
+gui.Name = "VB_AUTO_SAFE"
 
 local frame = Instance.new("Frame", gui)
-frame.Size = UDim2.new(0, 300, 0, 210)
+frame.Size = UDim2.new(0, 270, 0, 190)
 frame.Position = UDim2.new(0.05, 0, 0.35, 0)
 frame.BackgroundColor3 = Color3.fromRGB(20,20,20)
 frame.Active = true
 frame.Draggable = true
-Instance.new("UICorner", frame)
+Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 10)
 
 local title = Instance.new("TextLabel", frame)
-title.Size = UDim2.new(1, -20, 0, 30)
-title.Position = UDim2.new(0, 10, 0, 5)
-title.Text = "VB HUB | AUTO MAP SAFE"
+title.Size = UDim2.new(1, -40, 0, 35)
+title.Position = UDim2.new(0, 10, 0, 0)
+title.Text = "VB HUB | AUTO 2_X SAFE"
+title.TextColor3 = Color3.fromRGB(255,0,0)
 title.Font = Enum.Font.GothamBold
 title.TextSize = 14
-title.TextColor3 = Color3.fromRGB(255,0,0)
 title.BackgroundTransparency = 1
 title.TextXAlignment = Enum.TextXAlignment.Left
 
 local status = Instance.new("TextLabel", frame)
-status.Size = UDim2.new(1, -20, 0, 120)
+status.Size = UDim2.new(1, -20, 0, 80)
 status.Position = UDim2.new(0, 10, 0, 40)
+status.TextColor3 = Color3.new(1,1,1)
 status.Font = Enum.Font.Gotham
 status.TextSize = 12
-status.TextColor3 = Color3.new(1,1,1)
 status.BackgroundTransparency = 1
 status.TextWrapped = true
-status.TextYAlignment = Enum.TextYAlignment.Top
 
 local toggle = Instance.new("TextButton", frame)
-toggle.Size = UDim2.new(0.9, 0, 0, 35)
-toggle.Position = UDim2.new(0.05, 0, 0.78, 0)
+toggle.Size = UDim2.new(0.85, 0, 0, 40)
+toggle.Position = UDim2.new(0.075, 0, 0.7, 0)
 toggle.Text = "LIGAR AUTO FARM"
 toggle.Font = Enum.Font.GothamBold
 toggle.TextSize = 14
@@ -114,65 +113,51 @@ toggle.MouseButton1Click:Connect(function()
 end)
 
 -- ======================
--- AUTO FARM INTELIGENTE
+-- AUTO FARM SAFE
 -- ======================
 task.spawn(function()
     while task.wait(1) do
         if not getgenv().AutoFarm then continue end
 
-        local mapId = detectarMapa()
+        local algoAberto = false
 
-        -- mudou de mapa
-        if mapId ~= CurrentMap then
-            CurrentMap = mapId
-            Data.Maps[mapId] = Data.Maps[mapId] or {
-                Abertas = {},
-                Loot = {}
-            }
-            salvar()
-        end
+        for i = 1, MAX_CAIXAS do
+            if not getgenv().AutoFarm then break end
 
-        local mapData = Data.Maps[mapId]
-        local index = 0
-        local fails = 0
+            local id = MAP_ID .. "_" .. i
 
-        while getgenv().AutoFarm and fails < MAX_FAILS do
-            local id = mapId .. "_" .. index
+            -- já aberta = ignora
+            if Data.Abertas[id] then
+                continue
+            end
 
-            if not mapData.Abertas[id] then
-                local ok, ret = pcall(function()
-                    return Remote:InvokeServer(id)
-                end)
+            local ok, ret = pcall(function()
+                return Remote:InvokeServer(id)
+            end)
 
-                if ok and ret then
-                    mapData.Abertas[id] = true
-                    mapData.Loot[#mapData.Loot + 1] = {
-                        caixa = id,
-                        recompensa = ret,
-                        tempo = os.time()
-                    }
-                    Data.Historico[#Data.Historico + 1] = id
-                    salvar()
-                    fails = 0
-                    task.wait(BASE_DELAY)
-                else
-                    fails += 1
-                    task.wait(FAIL_DELAY)
-                end
+            -- retorno válido = recompensa real
+            if ok and ret then
+                Data.Validas[id] = true
+                Data.Abertas[id] = true
+                TotalRecompensas += 1
+                salvar()
+                algoAberto = true
+                task.wait(BASE_DELAY)
+            else
+                -- falha = espera mais (anti flag)
+                task.wait(FAIL_DELAY)
             end
 
             status.Text =
-                "Mapa atual: "..mapId..
-                "\nCaixas abertas: "..#mapData.Loot..
-                "\nTestando ID: "..id..
-                "\nFalhas seguidas: "..fails
-
-            index += 1
+                "Caixas válidas: "..contar(Data.Validas)..
+                "\nAbertas: "..contar(Data.Abertas)..
+                "\nRecompensas: "..TotalRecompensas
         end
 
-        -- acabou tudo nesse mapa
-        getgenv().AutoFarm = false
-        status.Text ..= "\n\n✔ TODAS AS CAIXAS DESTE MAPA FORAM COLETADAS"
+        -- nada mais pra abrir → para
+        if not algoAberto then
+            getgenv().AutoFarm = false
+            status.Text ..= "\n\n✔ TODAS AS RECOMPENSAS COLETADAS"
+        end
     end
 end)
-
